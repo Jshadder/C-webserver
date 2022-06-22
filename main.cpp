@@ -14,8 +14,8 @@
 #include "threadpool.h"
 #include "http_conn.h"
 
-#define MAX_FD 65536
-#define MAX_EVENT_NUMBERE 10000
+static const int MAX_FD=65536;
+static const int MAX_EVENT_NUMBERE=10000;
 
 extern int addfd(int epollfd,int fd,bool one_shot);
 extern int removefd(int epollfd,int fd);
