@@ -32,13 +32,8 @@ public:
     enum LINE_STATUS {LINE_OK=0,LINE_BAD,LINE_OPEN};
 
 public:
-    http_conn(){
-
-    }
-
-    ~http_conn(){
-
-    }
+    http_conn(){}
+    ~http_conn(){}
 
 public:
     void init(int sockfd,const sockaddr_in& addr); 
@@ -48,7 +43,7 @@ public:
     bool write();
 
 private:
-    void init();
+    void init(); //初始化或重置状态为新请求服务
     HTTP_CODE process_read();
     bool process_write(HTTP_CODE ret);
 
@@ -57,7 +52,7 @@ private:
     HTTP_CODE parse_header(char* text);
     HTTP_CODE parse_content(char* text);
     HTTP_CODE do_request();
-    char* get_line(){};
+    char* get_line(){return m_read_buf+m_start_line;}
     LINE_STATUS parse_line();
 
     //为写服务的函数
