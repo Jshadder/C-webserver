@@ -5,6 +5,7 @@
 #include <exception>
 #include <pthread.h>
 #include <semaphore.h>
+#include <assert.h>
 
 class mysem{
 public:
