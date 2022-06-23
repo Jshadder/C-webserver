@@ -3,7 +3,7 @@
 #define THREADPOOL_H
 
 #include <list>
-#include <cstdio>
+#include <stdio.h>
 #include <exception>
 #include <pthread.h>
 #include "mylocker.h"
@@ -24,8 +24,8 @@ private:
     int m_max_requests;         /*允许请求最大数量*/
     pthread_t* m_threads;       /*线程池数组*/
     std::list<T*> m_workqueue;  /*工作队列*/
-    mylocker m_queuelocker;       /*请求队列互斥锁*/
-    mysem m_queuestat;            /*请求队列信号*/
+    mylocker m_queuelocker;     /*请求队列互斥锁*/
+    mysem m_queuestat;          /*请求队列信号*/
     bool m_stop;                /*是否终止*/
 };
 
