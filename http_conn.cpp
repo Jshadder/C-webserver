@@ -44,7 +44,7 @@ int http_conn::m_epollfd=-1;
 int http_conn::m_user_count=0;
 
 void http_conn::close_conn(bool real_close){
-    if(real_close){
+    if(real_close&&m_sockfd!=-1){
         init();
         removefd(m_epollfd,m_sockfd);
         m_sockfd=-1;
@@ -119,15 +119,72 @@ http_conn::LINE_STATUS http_conn::parse_line(){
 }
 
 bool http_conn::read(){
-    
+    if(m_read_idx>=READ_BUFFER_SIZE)
+        return false;
+    while(true){
+        int ret=recv(m_sockfd,m_read_buf+m_read_idx,READ_BUFFER_SIZE-m_read_idx,0);
+        if(ret<0){
+            if(errno==EAGAIN||errno==EWOULDBLOCK){
+                break;
+            }
+            return false;
+        }
+        else if(ret==0){
+            return false;
+        }
+        else
+            m_read_idx+=ret;
+    }
+    return true;
 }
 
 http_conn::HTTP_CODE http_conn::parse_request_line(char* text){
+    char* method=text+strspn(text," \t");
+    char* url=strpbrk(method," \t");
+    if(url==nullptr)
+        return BAD_REQUEST;
+    *url++='\0';
+    url+=strspn(url," \t");
+    char* version=strpbrk(url," \t");
+    if(version==nullptr)
+        return BAD_REQUEST;
+    *version++='\0';
+    version+=strspn(version," \t");
+    
+    if(strcasecmp(method,"GET")==0)
+        m_method=GET;
+    else
+        return BAD_REQUEST;
+    
+    if(strncasecmp(url,"http://",7)==0){
+        url+=7;
+        m_url=strchr(url,'/');
+        if(m_url==nullptr||m_url[0]!='/')
+            return BAD_REQUEST;
+    }
 
+    if(strcasecmp(version,"HTTP/1.1")==0)
+        m_version="HTTP/1.1";
+    else
+        return BAD_REQUEST;
+    
+    m_check_state=CHECK_STATE_HEADER;
+    return NO_REQUEST;    
 }
 
 http_conn::HTTP_CODE http_conn::parse_header(char* text){
-
+    if(text[0]='\0'){
+        if(m_content_len!=0){
+            m_check_state=CHECK_STATE_CONTENT;
+            return NO_REQUEST;
+        }
+        return GET_REQUEST;
+    }
+    else if(strncasecmp(text,"Connection:",11)==0){
+        text+=11;
+        text+=strspn(text," \t");
+        
+    }
 }
 
 http_conn::HTTP_CODE http_conn::parse_content(char* text){
