@@ -13,6 +13,7 @@
 #include <assert.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <strings.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
