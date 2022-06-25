@@ -324,9 +324,9 @@ bool http_conn::write(){
 bool http_conn::add_response(const char* format,...){
     if(m_write_idx>=WRITE_BUFFER_SIZE)
         return false;
-
+    
     va_list arg_list;
-    va_start(arg_list,format);
+    va_start(arg_list,format); 
     int writelen=vsnprintf(m_write_buf+m_write_idx,WRITE_BUFFER_SIZE-1-m_write_idx,format,arg_list);
     va_end(arg_list);
 
@@ -413,5 +413,13 @@ bool http_conn::process_write(HTTP_CODE ret){
 }
 
 void http_conn::process(){
-
+    HTTP_CODE ret=process_read();
+    if(ret==NO_REQUEST){
+        modfd(m_epollfd,m_sockfd,EPOLLIN);
+        return;
+    }
+    bool write_ret=process_write(ret);
+    if(!write)
+        close_conn();
+    modfd(m_epollfd,m_sockfd,EPOLLOUT);
 }
