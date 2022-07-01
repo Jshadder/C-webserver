@@ -13,12 +13,11 @@
 #include <assert.h>
 #include <sys/stat.h>
 #include <string.h>
-#include <strings.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-#include <stdarg.h> 
+#include <stdarg.h>
 #include <errno.h>
 #include "mylocker.h"
 
@@ -33,8 +32,13 @@ public:
     enum LINE_STATUS {LINE_OK=0,LINE_BAD,LINE_OPEN};
 
 public:
-    http_conn(){}
-    ~http_conn(){}
+    http_conn(){
+
+    }
+
+    ~http_conn(){
+
+    }
 
 public:
     void init(int sockfd,const sockaddr_in& addr); 
@@ -44,8 +48,7 @@ public:
     bool write();
 
 private:
-    void init(); //初始化或重置状态为新请求服务
-
+    void init();
     HTTP_CODE process_read();
     bool process_write(HTTP_CODE ret);
 
@@ -54,7 +57,7 @@ private:
     HTTP_CODE parse_header(char* text);
     HTTP_CODE parse_content(char* text);
     HTTP_CODE do_request();
-    char* get_line(){return m_read_buf+m_start_line;}
+    char* get_line(){};
     LINE_STATUS parse_line();
 
     //为写服务的函数
@@ -95,7 +98,6 @@ private:
 
     char* m_file_address;
     struct stat m_file_stat;
-    
     struct iovec m_iv[2];
     int m_iv_count;
 };
