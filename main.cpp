@@ -84,7 +84,6 @@ int main(int argc,char* argv[]){
     epoll_event epollevent[MAX_EVENT_NUMBERE];
 
     http_conn* users=new http_conn[MAX_FD];
-    http_conn::m_user_count=0;
 
     while(true){
         int number=epoll_wait(epollfd,epollevent,MAX_EVENT_NUMBERE,-1);
