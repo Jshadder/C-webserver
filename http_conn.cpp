@@ -22,7 +22,7 @@ int setnonblocking(int fd){
 void addfd(int epollfd,int fd,bool one_shot){
     epoll_event ev;
     ev.data.fd=fd;
-    ev.events=EPOLLIN|EPOLLRDHUP|EPOLLET;
+    ev.events=EPOLLIN|EPOLLRDHUP|EPOLLET|EPOLLHUP;
     if(one_shot)
         ev.events|=EPOLLONESHOT;
     epoll_ctl(epollfd,EPOLL_CTL_ADD,fd,&ev);
@@ -46,7 +46,6 @@ int http_conn::m_user_count=0;
 
 void http_conn::close_conn(bool real_close){
     if(real_close&&m_sockfd!=-1){
-        init();
         removefd(m_epollfd,m_sockfd);
         m_sockfd=-1;
         --m_user_count;
@@ -157,12 +156,14 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char* text){
     else
         return BAD_REQUEST;
     
-    if(strncasecmp(url,"http://",7)==0){
-        url+=7;
-        m_url=strchr(url,'/');
-        if(m_url==nullptr||m_url[0]!='/')
-            return BAD_REQUEST;
+    m_url=url;
+    if(strncasecmp(m_url,"http://",7)==0){
+        m_url+=7;
+        m_url=strchr(m_url,'/');
     }
+
+    if(m_url==nullptr||m_url[0]!='/')
+        return BAD_REQUEST;
 
     if(strcasecmp(version,"HTTP/1.1")==0)
         m_version="HTTP/1.1";
@@ -181,7 +182,8 @@ http_conn::HTTP_CODE http_conn::parse_header(char* text){
         }
         return GET_REQUEST;
     }
-    else if(strncasecmp(text,"Connection:",11)==0){
+    text+=strspn(text," \t");
+    if(strncasecmp(text,"Connection:",11)==0){
         text+=11;
         text+=strspn(text," \t");
         if(strcasecmp(text,"keep-alive")==0)
@@ -190,7 +192,7 @@ http_conn::HTTP_CODE http_conn::parse_header(char* text){
     else if(strncasecmp(text,"Content-Length:",15)==0){
         text+=15;
         text+=strspn(text," \t");
-        if(m_content_len=atoi(text)==0){
+        if((m_content_len=atoi(text))==0){
             return BAD_REQUEST;
         }
     }
@@ -243,15 +245,12 @@ http_conn::HTTP_CODE http_conn::process_read(){
                 break;
             }
             case(CHECK_STATE_CONTENT):{
-                //与游双老师书上实现不同，一直读取直到失败或者将content读完
-                while(true){
-                    ret=parse_content(text);
-                    if(ret==GET_REQUEST)
-                        break;
-                    if(!read())
-                        return CLOSED_CONNECTION;
-                }
-                return do_request();
+                //与游双老师书上实现不同
+                ret=parse_content(text);
+                if(ret==GET_REQUEST)
+                    return do_request();
+                else
+                    return NO_REQUEST;
                 break;
             }
             default:
@@ -266,7 +265,7 @@ http_conn::HTTP_CODE http_conn::do_request(){
     int len=strlen(doc_root);
     strncat(m_real_file,m_url,FILENAME_LEN-1-len);
 
-    if(stat(m_real_file,&m_file_stat)<0)
+    if(stat(m_real_file,&m_file_stat)==-1)
         return NO_RESOURCE;
     if(!(m_file_stat.st_mode&S_IROTH))
         return FORBIDDEN_REQUEST;
@@ -275,6 +274,7 @@ http_conn::HTTP_CODE http_conn::do_request(){
 
     int filefd=open(m_real_file,O_RDONLY);
     m_file_address=(char*)mmap(nullptr,m_file_stat.st_size,PROT_READ,MAP_PRIVATE,filefd,0);
+    assert(m_file_address!=MAP_FAILED);
     close(filefd);
     return FILE_REQUEST;
 }
@@ -289,7 +289,6 @@ void http_conn::unmap(){
 bool http_conn::write(){
     int writelen=0;
     int bytes_to_send=m_write_idx+m_file_stat.st_size;
-    int bytes_have_send=0;
 
     if(bytes_to_send==0){
         modfd(m_epollfd,m_sockfd,EPOLLIN);
@@ -306,34 +305,40 @@ bool http_conn::write(){
         unmap();
         return false;
     }
-    bytes_have_send+=writelen;
     unmap();
-    if(bytes_have_send>=bytes_to_send){
+    if(writelen==bytes_to_send){
         if(m_linger){
             init();
             modfd(m_epollfd,m_sockfd,EPOLLIN);
             return true;
         }
+        return false;
     }
     else{
-        init();
+        printf("TCP rdbuffer busy\n");
         return false;
     }
 }
 
 bool http_conn::add_response(const char* format,...){
-    if(m_write_idx>=WRITE_BUFFER_SIZE)
+    if(m_write_idx>=WRITE_BUFFER_SIZE){
+        printf("http rdbuffer busy\n");
         return false;
+    }
     
     va_list arg_list;
     va_start(arg_list,format); 
     int writelen=vsnprintf(m_write_buf+m_write_idx,WRITE_BUFFER_SIZE-1-m_write_idx,format,arg_list);
     va_end(arg_list);
 
-    if(writelen<0)
+    if(writelen<0){
+        printf("vsnprintf error\n");
         return false;
-    else if(writelen+m_write_idx>WRITE_BUFFER_SIZE-1)
+    }
+    else if(writelen+m_write_idx>WRITE_BUFFER_SIZE-1){
+        printf("vsnprintf wbuffer busy\n");
         return false;
+    }
     m_write_idx+=writelen;
     return true;
 }
@@ -419,7 +424,9 @@ void http_conn::process(){
         return;
     }
     bool write_ret=process_write(ret);
-    if(!write)
+    if(!write_ret){
         close_conn();
+        return;
+    }
     modfd(m_epollfd,m_sockfd,EPOLLOUT);
 }
