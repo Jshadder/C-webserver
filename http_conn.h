@@ -18,7 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-#include <stdarg.h>
+#include <stdarg.h> 
 #include <errno.h>
 #include "mylocker.h"
 
@@ -45,6 +45,7 @@ public:
 
 private:
     void init(); //初始化或重置状态为新请求服务
+
     HTTP_CODE process_read();
     bool process_write(HTTP_CODE ret);
 
@@ -94,6 +95,7 @@ private:
 
     char* m_file_address;
     struct stat m_file_stat;
+    
     struct iovec m_iv[2];
     int m_iv_count;
 };
