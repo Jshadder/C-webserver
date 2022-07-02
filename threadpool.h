@@ -46,7 +46,7 @@ m_thread_number(thread_number),m_max_requests(max_requests),m_stop(false),m_thre
             throw std::exception();
         }
 
-        if(pthread_detach(m_threads+i)!=0){
+        if(pthread_detach(m_threads[i])!=0){
             delete [] m_threads;
             throw std::exception();
         }
@@ -67,7 +67,7 @@ bool threadpool<T>::append(T* request){
         return false;
     }
     m_workqueue.emplace_back(request);
-    assert(m_queuelocker.unlock);
+    assert(m_queuelocker.unlock());
     assert(m_queuestat.post());
     return true;
 }
