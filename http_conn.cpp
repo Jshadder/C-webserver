@@ -1,7 +1,7 @@
 #include "http_conn.h"
 
 const char* ok_200_title="OK";
-const char* ok_string="<html><body></body></html>";
+const char* ok_string="<html><body></body></html>\n";
 const char* error_400_title="Bad Request";
 const char* error_400_form="Your request has bad syntax or is inherently impossible to satisfy.\n";
 const char* error_403_title="Forbidden";
@@ -10,12 +10,12 @@ const char* error_404_title="Not Found";
 const char* error_404_form="The requested file was not found on this server.\n";
 const char* error_500_title="Internal Error";
 const char* error_500_form="There was an unusual problem serving the requested file.\n";
-const char* doc_root="/var/www/html";
+const char* doc_root="/home/jiangzhiwei/mywebroot";
 
 int setnonblocking(int fd){
-    int old_opt=fcntl(fd,F_GETFD);
+    int old_opt=fcntl(fd,F_GETFL);
     int new_opt=old_opt|O_NONBLOCK;
-    fcntl(fd,F_SETFD,new_opt);
+    fcntl(fd,F_SETFL,new_opt);
     return old_opt;
 }
 
@@ -37,7 +37,7 @@ void removefd(int epollfd,int fd){
 void modfd(int epollfd,int fd,int ev){
     epoll_event event;
     event.data.fd=fd;
-    event.events=ev|EPOLLET|EPOLLONESHOT|EPOLLRDHUP;
+    event.events=ev|EPOLLET|EPOLLONESHOT|EPOLLRDHUP|EPOLLHUP;
     epoll_ctl(epollfd,EPOLL_CTL_MOD,fd,&event);
 }
 
@@ -166,7 +166,7 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char* text){
         return BAD_REQUEST;
 
     if(strcasecmp(version,"HTTP/1.1")==0)
-        m_version="HTTP/1.1";
+        m_version=version;
     else
         return BAD_REQUEST;
     
@@ -175,7 +175,7 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char* text){
 }
 
 http_conn::HTTP_CODE http_conn::parse_header(char* text){
-    if(text[0]='\0'){
+    if(text[0]=='\0'){
         if(m_content_len!=0){
             m_check_state=CHECK_STATE_CONTENT;
             return NO_REQUEST;
@@ -274,21 +274,21 @@ http_conn::HTTP_CODE http_conn::do_request(){
 
     int filefd=open(m_real_file,O_RDONLY);
     m_file_address=(char*)mmap(nullptr,m_file_stat.st_size,PROT_READ,MAP_PRIVATE,filefd,0);
-    assert(m_file_address!=MAP_FAILED);
+    //assert(m_file_address!=MAP_FAILED);
     close(filefd);
     return FILE_REQUEST;
 }
 
 void http_conn::unmap(){
     if(m_file_address!=nullptr){
-        assert(munmap(m_file_address,m_file_stat.st_size)==0);
+        munmap(m_file_address,m_file_stat.st_size);
         m_file_address=nullptr;
     }
 }
 
 bool http_conn::write(){
     int writelen=0;
-    int bytes_to_send=m_write_idx+m_file_stat.st_size;
+    int bytes_to_send=m_iv[0].iov_len+m_iv[1].iov_len;
 
     if(bytes_to_send==0){
         modfd(m_epollfd,m_sockfd,EPOLLIN);
@@ -315,14 +315,14 @@ bool http_conn::write(){
         return false;
     }
     else{
-        printf("TCP rdbuffer busy\n");
+        printf("TCP wbuffer busy\n");
         return false;
     }
 }
 
 bool http_conn::add_response(const char* format,...){
     if(m_write_idx>=WRITE_BUFFER_SIZE){
-        printf("http rdbuffer busy\n");
+        printf("http wbuffer busy\n");
         return false;
     }
     
