@@ -64,6 +64,7 @@ bool threadpool<T>::append(T* request){
     assert(m_queuelocker.lock());
     if(m_workqueue.size()>=m_max_requests){
         assert(m_queuelocker.unlock());
+        printf("Too many requests\n");
         return false;
     }
     m_workqueue.emplace_back(request);
