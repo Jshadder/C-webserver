@@ -105,6 +105,8 @@ int main(int argc,char* argv[]){
                 while(true){
                     int connfd=accept(curfd,(sockaddr*)&client_addr,&client_len);
                     if(connfd<0){
+                        if(errno==EAGAIN)
+                            break;
                         printf("accept() errno is:%d\n",errno);
                         break;
                     }  
