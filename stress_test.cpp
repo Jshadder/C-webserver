@@ -10,8 +10,18 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <libgen.h>
+#include <time.h>
 
 static const char* request="Get http://localhost/a.file HTTP/1.1\r\nConnection: keep-alive\r\n\r\nxxxxxxxxxxxx";
+
+struct QPS{
+    long last_timne;
+    int cnt;
+    QPS(){
+        last_timne=time(nullptr);
+        cnt=0;
+    }
+};
 
 int setnonblocking(int fd){
     int old_opt=fcntl(fd,F_GETFL);
@@ -96,6 +106,8 @@ int main(int argc,char* argv[]){
     epoll_event events[10000];
     start_conn(epollfd,atoi(argv[3]),argv[1],atoi(argv[2]));
 
+    QPS qps;
+
     char rdbuf[2048];
     while(true){
         int number=epoll_wait(epollfd,events,10000,2000);
@@ -118,6 +130,13 @@ int main(int argc,char* argv[]){
                 if(!read_once(curfd,rdbuf,2048)){
                     close_conn(epollfd,curfd);
                     continue;
+                }
+                ++qps.cnt;
+                long curtime=time(nullptr);
+                if(curtime-qps.last_timne>=1){
+                    printf("-----qps=%d-----\n",qps.cnt);
+                    qps.last_timne=curtime;
+                    qps.cnt=0;
                 }
                 modfd(epollfd,curfd,EPOLLOUT);
             }
