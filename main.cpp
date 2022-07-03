@@ -42,12 +42,15 @@ void show_error(int connfd,const char* info){
 int main(int argc,char* argv[]){
     if(argc<=2){
         printf("usage: %s ip_address port_number\n",basename(argv[0]));
+        return 1;
     }
     const char* ip_address=argv[1];
     int port_number=atoi(argv[2]);
     //忽略SIGPIPE
     addsig(SIGPIPE,SIG_IGN);
-
+    //close(STDIN_FILENO);
+    //close(STDOUT_FILENO);
+    //close(STDERR_FILENO);
     threadpool<http_conn>* workpool=nullptr;
     try{
         workpool=new threadpool<http_conn>();
@@ -99,18 +102,20 @@ int main(int argc,char* argv[]){
             if(curfd==listenfd){
                 struct sockaddr_in client_addr;
                 socklen_t client_len=sizeof(client_addr);
-                int connfd=accept(curfd,(sockaddr*)&client_addr,&client_len);
-                if(connfd<0){
-                    printf("accept() errno is:%d\n",errno);
-                    continue;
-                }
+                while(true){
+                    int connfd=accept(curfd,(sockaddr*)&client_addr,&client_len);
+                    if(connfd<0){
+                        printf("accept() errno is:%d\n",errno);
+                        break;
+                    }  
 
-                if(http_conn::m_user_count>=MAX_FD){
-                    show_error(connfd,"Too many users!\n");
-                    continue;
-                }
+                    if(http_conn::m_user_count>=MAX_FD){
+                        show_error(connfd,"Too many users!\n");
+                        continue;
+                    }
 
-                users[connfd].init(connfd,client_addr);
+                    users[connfd].init(connfd,client_addr);
+                }
             }
             else if(epollevent[i].events&(EPOLLHUP|EPOLLERR|EPOLLRDHUP))
                 users[curfd].close_conn();
