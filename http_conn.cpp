@@ -119,8 +119,10 @@ http_conn::LINE_STATUS http_conn::parse_line(){
 }
 
 bool http_conn::read(){
-    if(m_read_idx>=READ_BUFFER_SIZE)
+    if(m_read_idx>=READ_BUFFER_SIZE){
+        printf("rdbuffer busy\n");
         return false;
+    }
     while(true){
         int readlen=recv(m_sockfd,m_read_buf+m_read_idx,READ_BUFFER_SIZE-m_read_idx,0);
         if(readlen<0){
@@ -150,6 +152,9 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char* text){
         return BAD_REQUEST;
     *version++='\0';
     version+=strspn(version," \t");
+    char* last=strpbrk(version," \t");
+    if(last!=nullptr)
+        *last='\0';
     
     if(strcasecmp(method,"GET")==0)
         m_method=GET;
