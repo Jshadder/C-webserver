@@ -279,7 +279,7 @@ http_conn::HTTP_CODE http_conn::do_request(){
 
     int filefd=open(m_real_file,O_RDONLY);
     m_file_address=(char*)mmap(nullptr,m_file_stat.st_size,PROT_READ,MAP_PRIVATE,filefd,0);
-    if(m_file_address!=MAP_FAILED){
+    if(m_file_address==MAP_FAILED){
         printf("map failed\n");
         m_file_address=nullptr;
         return INTERNAL_ERROR;
