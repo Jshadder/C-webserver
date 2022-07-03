@@ -282,6 +282,7 @@ http_conn::HTTP_CODE http_conn::do_request(){
     if(m_file_address==MAP_FAILED){
         printf("map failed\n");
         m_file_address=nullptr;
+        close(filefd);
         return INTERNAL_ERROR;
     }
     close(filefd);
