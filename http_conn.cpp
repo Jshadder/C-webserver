@@ -15,7 +15,7 @@ const char* doc_root="/home/jiangzhiwei/mywebroot";
 int setnonblocking(int fd){
     int old_opt=fcntl(fd,F_GETFL);
     int new_opt=old_opt|O_NONBLOCK;
-    fcntl(fd,F_SETFL,new_opt);
+    assert(fcntl(fd,F_SETFL,new_opt)==0);
     return old_opt;
 }
 
