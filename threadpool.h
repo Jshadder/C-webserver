@@ -94,6 +94,8 @@ void threadpool<T>::run(){
         assert(m_queuelocker.unlock());
         if(req==nullptr)
             continue;
+        pthread_t tid=pthread_self();
+        printf("Now thread %lu is serving\n",tid);
         req->process();
     }
 }
