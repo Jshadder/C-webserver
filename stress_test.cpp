@@ -15,10 +15,10 @@
 static const char* request="Get http://localhost/a.file HTTP/1.1\r\nConnection: keep-alive\r\n\r\nxxxxxxxxxxxx";
 
 struct QPS{
-    long last_timne;
+    time_t last_time;
     int cnt;
     QPS(){
-        last_timne=time(nullptr);
+        last_time=time(nullptr);
         cnt=0;
     }
 };
@@ -132,10 +132,10 @@ int main(int argc,char* argv[]){
                     continue;
                 }
                 ++qps.cnt;
-                long curtime=time(nullptr);
-                if(curtime-qps.last_timne>=1){
+                time_t curtime=time(nullptr);
+                if(curtime-qps.last_time>=1){
                     printf("-----qps=%d-----\n",qps.cnt);
-                    qps.last_timne=curtime;
+                    qps.last_time=curtime;
                     qps.cnt=0;
                 }
                 modfd(epollfd,curfd,EPOLLOUT);
