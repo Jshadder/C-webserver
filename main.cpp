@@ -15,12 +15,24 @@
 #include "mylocker.h"
 #include "threadpool.h"
 #include "http_conn.h"
+#include "timer_heap.h"
 
+static const int TIMEOUT=15;
 static const int MAX_FD=65536;
 static const int MAX_EVENT_NUMBERE=10000;
+static timer_heap<http_conn> TH(100);
+static int pipefd[2];//信号管道
 
 extern int addfd(int epollfd,int fd,bool one_shot);
 extern int removefd(int epollfd,int fd);
+extern int setnonblocking(int fd);
+
+void sig_handler(int sig){
+    int saveno=errno;
+    int msg=sig;
+    send(pipefd[1],(char*)&msg,1,0);
+    errno=saveno;
+}
 
 void addsig(int sig,void(*handler)(int),bool restart=true){
     struct sigaction sa;
@@ -39,6 +51,17 @@ void show_error(int connfd,const char* info){
     close(connfd);
 }
 
+void time_handler(){
+    TH.tick();
+    if(!TH.empty())
+        alarm(TH.top()->expire-time(nullptr));
+}
+
+void cb_func(http_conn* usr){
+    printf("closing silent socket\n");
+    usr->close_conn();
+}
+
 int main(int argc,char* argv[]){
     if(argc<=2){
         printf("usage: %s ip_address port_number\n",basename(argv[0]));
@@ -48,6 +71,9 @@ int main(int argc,char* argv[]){
     int port_number=atoi(argv[2]);
     //忽略SIGPIPE
     addsig(SIGPIPE,SIG_IGN);
+    addsig(SIGALRM,sig_handler);
+    addsig(SIGTERM,sig_handler);
+    //addsig(SIGSTOP,sig_handler);
     //close(STDIN_FILENO);
     //close(STDOUT_FILENO);
     //close(STDERR_FILENO);
@@ -88,7 +114,15 @@ int main(int argc,char* argv[]){
 
     http_conn* users=new http_conn[MAX_FD];
 
-    while(true){
+    ret=socketpair(AF_UNIX,SOCK_STREAM,0,pipefd);
+    assert(ret==0);
+    setnonblocking(pipefd[1]);
+    addfd(epollfd,pipefd[0],false);
+
+    bool stop=false;
+    bool timeout=false;
+
+    while(!stop){
         int number=epoll_wait(epollfd,epollevent,MAX_EVENT_NUMBERE,-1);
         if(number<0){
             if(errno!=EAGAIN&&errno!=EINTR){
@@ -117,24 +151,68 @@ int main(int argc,char* argv[]){
                     }
 
                     users[connfd].init(connfd,client_addr);
+                    users[connfd].timer=heap_timer<http_conn>(TIMEOUT,cb_func,users+connfd);//每个连接只存活TIMEOUT秒
+                    if(TH.empty())
+                        alarm(users[connfd].timer.expire-time(nullptr));
+                    TH.add_timer(&users[connfd].timer);
                 }
             }
-            else if(epollevent[i].events&(EPOLLHUP|EPOLLERR|EPOLLRDHUP))
+            else if((curfd==pipefd[0])&&(epollevent[i].events&EPOLLIN)){
+                int sig=0;
+                char signals[1024];
+                ret=recv(curfd,signals,sizeof(signals),0);
+                if(ret<=0){
+                    printf("read signals failure\n");
+                    continue;
+                }
+                else{
+                    for(int i=0;i<ret;++i){
+                        sig=signals[i];
+                        switch (sig){
+                        case SIGALRM:{
+                            timeout=true;//定时器任务优先级不高
+                            break;
+                        }
+                        case SIGSTOP:
+                        case SIGTERM:{
+                            stop=true;
+                            break;
+                        }
+                        default:
+                            break;
+                        }
+                    }
+                }
+            }
+            else if(epollevent[i].events&(EPOLLHUP|EPOLLERR|EPOLLRDHUP)){
+                TH.del_timer(&users[curfd].timer);
                 users[curfd].close_conn();
+            }
             else if(epollevent[i].events&EPOLLIN){
                 if(users[curfd].read())
                     workpool->append(users+curfd);
-                else
+                else{
+                    TH.del_timer(&users[curfd].timer);
                     users[curfd].close_conn();
+                }
             }
             else if(epollevent[i].events&EPOLLOUT){
-                if(!users[curfd].write())
+                if(!users[curfd].write()){
+                    TH.del_timer(&users[curfd].timer);
                     users[curfd].close_conn();
+                }
             }
+        }
+
+        if(timeout){
+            time_handler();
+            timeout=false;
         }
     }
     close(listenfd);
     close(epollfd);
+    close(pipefd[0]);
+    close(pipefd[1]);
     delete [] users;
     delete workpool;
     return 0;
