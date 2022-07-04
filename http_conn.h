@@ -21,6 +21,7 @@
 #include <stdarg.h> 
 #include <errno.h>
 #include "mylocker.h"
+#include "timer_heap.h"
 
 class http_conn{
 public:
@@ -70,6 +71,7 @@ private:
 public:
     static int m_epollfd;
     static int m_user_count;
+    heap_timer<http_conn> timer;
 
 private:
     int m_sockfd;
