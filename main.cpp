@@ -91,7 +91,7 @@ int main(int argc,char* argv[]){
     while(true){
         int number=epoll_wait(epollfd,epollevent,MAX_EVENT_NUMBERE,-1);
         if(number<0){
-            if(errno!=EAGAIN){
+            if(errno!=EAGAIN&&errno!=EINTR){
                 printf("epoll wait failure\n");
                 break;
             }
