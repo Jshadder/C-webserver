@@ -17,10 +17,10 @@
 #include "http_conn.h"
 #include "timer_heap.h"
 
-static const int TIMEOUT=15;
+static const int TIMEOUT=20;
 static const int MAX_FD=65536;
 static const int MAX_EVENT_NUMBERE=10000;
-static timer_heap<http_conn> TH(100);
+static timer_heap<http_conn> TH(1000);
 static int pipefd[2];//信号管道
 
 extern int addfd(int epollfd,int fd,bool one_shot);
@@ -54,7 +54,7 @@ void show_error(int connfd,const char* info){
 void time_handler(){
     TH.tick();
     if(!TH.empty())
-        alarm(TH.top()->expire-time(nullptr));
+        alarm(TH.top()->get_expire()-time(nullptr));
 }
 
 void cb_func(http_conn* usr){
@@ -79,7 +79,7 @@ int main(int argc,char* argv[]){
     //close(STDERR_FILENO);
     threadpool<http_conn>* workpool=nullptr;
     try{
-        workpool=new threadpool<http_conn>();
+        workpool=new threadpool<http_conn>(16,10000);
     }
     catch(...){
         printf("Fail to new threadpool\n");
@@ -151,9 +151,9 @@ int main(int argc,char* argv[]){
                     }
 
                     users[connfd].init(connfd,client_addr);
-                    users[connfd].timer=heap_timer<http_conn>(TIMEOUT,cb_func,users+connfd);//每个连接只存活TIMEOUT秒
+                    users[connfd].timer=heap_timer<http_conn>(TIMEOUT,cb_func,users+connfd);//每个连接保活TIMEOUT秒
                     if(TH.empty())
-                        alarm(users[connfd].timer.expire-time(nullptr));
+                        alarm(users[connfd].timer.get_expire()-time(nullptr));
                     TH.add_timer(&users[connfd].timer);
                 }
             }
@@ -189,8 +189,10 @@ int main(int argc,char* argv[]){
                 users[curfd].close_conn();
             }
             else if(epollevent[i].events&EPOLLIN){
-                if(users[curfd].read())
+                if(users[curfd].read()){
                     workpool->append(users+curfd);
+                    TH.delay_timer(&users[curfd].timer,TIMEOUT);
+                }
                 else{
                     TH.del_timer(&users[curfd].timer);
                     users[curfd].close_conn();
