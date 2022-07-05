@@ -5,26 +5,39 @@
 #include <netinet/in.h>
 #include <time.h>
 
+
 template <class T>
 class heap_timer{
-public:
-    heap_timer(){
-        expire=-1;
-        cb_func=nullptr;
-        usr=nullptr;
-    }
+typedef void (*cbfunp)(T*);
 
-    heap_timer(time_t delay,void (*f)(T*)=nullptr,T* u=nullptr):cb_func(f),usr(u){
+public:
+    heap_timer():expire(-1),cb_func(nullptr),usr(nullptr),idx(-1){}
+
+    heap_timer(time_t delay,cbfunp f=nullptr,T* u=nullptr):cb_func(f),usr(u),idx(-1){
         expire=time(nullptr)+delay;
     }
+
 public:
+    time_t get_expire()const{return expire;}
+    void delay_expire(time_t delay){expire=time(nullptr)+delay;}
+    cbfunp get_cbfunc()const{return cb_func;}
+    void set_cbfunc(cbfunp f){cb_func=f;}
+    T* get_usr()const{return usr;}
+    void set_usr(T* U){usr=u;}
+    int get_idx()const{return idx;}
+    void set_idx(int i){idx=i;}
+
+private:
     time_t expire;
-    void (*cb_func)(T*);
+    cbfunp cb_func;
     T* usr;
+    int idx;
 };
 
 template <class T>
 class timer_heap{
+typedef void (*cbfunp)(T*);
+
 public:
     timer_heap(int cap);
     timer_heap(heap_timer<T>** init_arr,int cap,int size);
@@ -32,11 +45,12 @@ public:
 
 public:
     void add_timer(heap_timer<T>* timer);
+    void delay_timer(heap_timer<T>* timer,time_t delay);
     void del_timer(heap_timer<T>* timer);
-    heap_timer<T>* top() const{return empty()?nullptr:arr[0];};
+    heap_timer<T>* top() const{return empty()?nullptr:arr[0];}
     void pop();
     void tick();
-    bool empty() const{return cursize==0;};
+    bool empty() const{return cursize==0;}
 
 private:
     void percolate_down(int hole);
@@ -94,12 +108,25 @@ void timer_heap<T>::add_timer(heap_timer<T>* timer){
     int parent=0;
     while(hole>0){
         parent=(hole-1)/2;
-        if(arr[parent]->expire<=timer->expire)
+        if(arr[parent]->get_expire()<=timer->get_expire())
             break;
         arr[hole]=arr[parent];
+        arr[hole]->set_idx(hole);
         hole=parent;
     }
     arr[hole]=timer;
+    timer->set_idx(hole);
+}
+
+//更新的时间影响定时精度
+template <class T>
+void timer_heap<T>::delay_timer(heap_timer<T>* timer,time_t delay){
+    if(timer==nullptr)
+        return;
+    if(delay<=0)
+        throw std::exception();
+    timer->delay_expire(delay);
+    percolate_down(timer->get_idx());
 }
 
 //懒惰删除
@@ -133,9 +160,7 @@ void timer_heap<T>::tick(){
         if(tmp->cb_func!=nullptr)
             tmp->cb_func(tmp->usr);
         pop();
-        if(empty())
-            break;
-        tmp=arr[0];
+        tmp=top();
     }
 }
 
@@ -150,9 +175,11 @@ void timer_heap<T>::percolate_down(int hole){
         if(arr[child]->expire>=tmp->expire)
             break;
         arr[hole]=arr[child];
+        arr[hole]->set_idx(hole);
         hole=child;
     }
     arr[hole]=tmp;
+    arr[hole]->set_idx(hole);
 }
 
 template <class T>
