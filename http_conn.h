@@ -43,6 +43,7 @@ public:
     void process();
     bool read();
     bool write();
+    int GetSocket()const{return m_sockfd;}
 
 private:
     void init(); //初始化或重置状态为新请求服务
