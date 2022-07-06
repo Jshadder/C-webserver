@@ -23,7 +23,7 @@ public:
     cbfunp get_cbfunc()const{return cb_func;}
     void set_cbfunc(cbfunp f){cb_func=f;}
     T* get_usr()const{return usr;}
-    void set_usr(T* U){usr=u;}
+    void set_usr(T* u){usr=u;}
     int get_idx()const{return idx;}
     void set_idx(int i){idx=i;}
 
@@ -134,7 +134,7 @@ template <class T>
 void timer_heap<T>::del_timer(heap_timer<T>* timer){
     if(timer==nullptr)
         return;
-    timer->cb_func=nullptr;
+    timer->set_cbfunc(nullptr);
 }
 
 template <class T>
@@ -155,10 +155,10 @@ void timer_heap<T>::tick(){
     time_t duetime=time(nullptr);
 
     while(tmp!=nullptr){
-        if(tmp->expire>duetime)
+        if(tmp->get_expire()>duetime)
             break;
-        if(tmp->cb_func!=nullptr)
-            tmp->cb_func(tmp->usr);
+        if(tmp->get_cbfunc()!=nullptr)
+            tmp->get_cbfunc()(tmp->get_usr());
         pop();
         tmp=top();
     }
@@ -170,9 +170,9 @@ void timer_heap<T>::percolate_down(int hole){
     int child=0;
     while(2*hole+1<cursize){
         child=2*hole+1;
-        if((child+1<cursize)&&(arr[child+1]->expire<arr[child]->expire))
+        if((child+1<cursize)&&(arr[child+1]->get_expire()<arr[child]->get_expire()))
             ++child;
-        if(arr[child]->expire>=tmp->expire)
+        if(arr[child]->get_expire()>=tmp->get_expire())
             break;
         arr[hole]=arr[child];
         arr[hole]->set_idx(hole);
