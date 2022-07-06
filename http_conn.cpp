@@ -435,6 +435,7 @@ void http_conn::process(){
     }
     bool write_ret=process_write(ret);
     if(!write_ret){
+        timer.set_cbfunc(nullptr);
         close_conn();
         return;
     }
