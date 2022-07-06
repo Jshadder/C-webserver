@@ -22,6 +22,7 @@ static const int MAX_FD=65536;
 static const int MAX_EVENT_NUMBERE=10000;
 static timer_heap<http_conn> TH(1000);
 static int pipefd[2];//信号管道
+const char* ShutSilent="Your connection is closed due to timeout\n";
 
 extern int addfd(int epollfd,int fd,bool one_shot);
 extern int removefd(int epollfd,int fd);
@@ -58,7 +59,9 @@ void time_handler(){
 }
 
 void cb_func(http_conn* usr){
-    printf("closing silent socket\n");
+    int sockfd=usr->GetSocket();
+    printf("closing silent socket %d\n",sockfd);
+    send(sockfd,ShutSilent,strlen(ShutSilent),0);
     usr->close_conn();
 }
 
