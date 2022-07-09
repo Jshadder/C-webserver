@@ -12,41 +12,12 @@ const char* error_500_title="Internal Error";
 const char* error_500_form="There was an unusual problem serving the requested file.\n";
 const char* doc_root="/home/jiangzhiwei/mywebroot";
 
-int setnonblocking(int fd){
-    int old_opt=fcntl(fd,F_GETFL);
-    int new_opt=old_opt|O_NONBLOCK;
-    assert(fcntl(fd,F_SETFL,new_opt)==0);
-    return old_opt;
-}
-
-void addfd(int epollfd,int fd,bool one_shot){
-    epoll_event ev;
-    ev.data.fd=fd;
-    ev.events=EPOLLIN|EPOLLRDHUP|EPOLLET|EPOLLHUP;
-    if(one_shot)
-        ev.events|=EPOLLONESHOT;
-    epoll_ctl(epollfd,EPOLL_CTL_ADD,fd,&ev);
-    setnonblocking(fd);
-}
-
-void removefd(int epollfd,int fd){
-    epoll_ctl(epollfd,EPOLL_CTL_DEL,fd,nullptr);
-    close(fd);
-}
-
-void modfd(int epollfd,int fd,int ev){
-    epoll_event event;
-    event.data.fd=fd;
-    event.events=ev|EPOLLET|EPOLLONESHOT|EPOLLRDHUP|EPOLLHUP;
-    epoll_ctl(epollfd,EPOLL_CTL_MOD,fd,&event);
-}
-
-int http_conn::m_epollfd=-1;
+myepoll http_conn::m_epoll=myepoll();
 int http_conn::m_user_count=0;
 
 void http_conn::close_conn(bool real_close){
     if(real_close&&m_sockfd!=-1){
-        removefd(m_epollfd,m_sockfd);
+        m_epoll.DelFd(m_sockfd);
         m_sockfd=-1;
         --m_user_count;
     }
@@ -60,7 +31,7 @@ void http_conn::init(int sockfd,const sockaddr_in& addr){
     //int reuse=1;
     //setsockopt(m_sockfd,SOL_SOCKET,SO_REUSEADDR,&reuse,sizeof(reuse));
 
-    addfd(m_epollfd,m_sockfd,true);
+    m_epoll.AddFd(m_sockfd,true);
     ++m_user_count;
 
     init();
@@ -301,7 +272,7 @@ bool http_conn::write(){
     int bytes_to_send=m_iv[0].iov_len+m_iv[1].iov_len;
 
     if(bytes_to_send==0){
-        modfd(m_epollfd,m_sockfd,EPOLLIN);
+        m_epoll.ModFd(m_sockfd,EPOLLIN,true);
         init();
         return true;
     }
@@ -309,7 +280,7 @@ bool http_conn::write(){
     writelen=writev(m_sockfd,m_iv,m_iv_count);
     if(writelen<0){
         if(errno==EAGAIN){
-            modfd(m_epollfd,m_sockfd,EPOLLOUT);
+            m_epoll.ModFd(m_sockfd,EPOLLOUT,true);
             return true;
         }
         unmap();
@@ -319,7 +290,7 @@ bool http_conn::write(){
     if(writelen==bytes_to_send){
         if(m_linger){
             init();
-            modfd(m_epollfd,m_sockfd,EPOLLIN);
+            m_epoll.ModFd(m_sockfd,EPOLLIN,true);
             return true;
         }
         return false;
@@ -430,14 +401,14 @@ bool http_conn::process_write(HTTP_CODE ret){
 void http_conn::process(){
     HTTP_CODE ret=process_read();
     if(ret==NO_REQUEST){
-        modfd(m_epollfd,m_sockfd,EPOLLIN);
+        m_epoll.ModFd(m_sockfd,EPOLLIN,true);
         return;
     }
     bool write_ret=process_write(ret);
     if(!write_ret){
-        timer.set_cbfunc(nullptr);
+        timer->set_cbfunc(nullptr);
         close_conn();
         return;
     }
-    modfd(m_epollfd,m_sockfd,EPOLLOUT);
+    m_epoll.ModFd(m_sockfd,EPOLLOUT,true);
 }
