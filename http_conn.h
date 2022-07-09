@@ -2,11 +2,9 @@
 #ifndef HTTPCONN_H
 #define HTTPCONN_H
 
-#include <unistd.h>
+//#include <unistd.h>
 #include <signal.h>
 #include <sys/types.h>
-#include <sys/epoll.h>
-#include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -22,6 +20,7 @@
 #include <errno.h>
 #include "mylocker.h"
 #include "timer_heap.h"
+#include "myepoll.h"
 
 class http_conn{
 public:
@@ -34,8 +33,8 @@ public:
     enum LINE_STATUS {LINE_OK=0,LINE_BAD,LINE_OPEN};
 
 public:
-    http_conn(){}
-    ~http_conn(){}
+    http_conn(){timer=new heap_timer<http_conn>();}
+    ~http_conn(){if(timer)delete timer;}
 
 public:
     void init(int sockfd,const sockaddr_in& addr); 
@@ -70,9 +69,9 @@ private:
     bool add_blank_line();
 
 public:
-    static int m_epollfd;
+    static myepoll m_epoll;
     static int m_user_count;
-    heap_timer<http_conn> timer;
+    heap_timer<http_conn>* timer;
 
 private:
     int m_sockfd;
