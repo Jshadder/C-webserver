@@ -17,6 +17,13 @@ public:
         expire=time(nullptr)+delay;
     }
 
+    heap_timer<T>& operator=(const heap_timer<T>&& obj){
+        expire=obj.expire;
+        cb_func=obj.cb_func;
+        usr=obj.usr;
+        idx=obj.idx;
+    }
+
 public:
     time_t get_expire()const{return expire;}
     void delay_expire(time_t delay){expire=time(nullptr)+delay;}
@@ -63,7 +70,7 @@ private:
 };
 
 template <class T>
-timer_heap<T>::timer_heap(int cap):capacity(cap),cursize(0),arr(nullptr){
+timer_heap<T>::timer_heap(int cap):arr(nullptr),capacity(cap),cursize(0){
     arr=new heap_timer<T>* [capacity];
     for(int i=0;i<capacity;++i)
         arr[i]=nullptr;
