@@ -7,6 +7,7 @@
 #include <exception>
 #include <pthread.h>
 #include "mylocker.h"
+#include "mylog.h"
 
 template <typename T>
 class threadpool{
@@ -39,6 +40,7 @@ m_thread_number(thread_number),m_max_requests(max_requests),m_threads(nullptr),m
     m_threads=new pthread_t[thread_number];
     
     for(int i=0;i<m_thread_number;++i){
+        LOG_INFO("Now creating thread %d.",i);
         printf("Now creating thread %d.\n",i);
 
         if(pthread_create(m_threads+i,nullptr,worker,this)!=0){
@@ -64,6 +66,7 @@ bool threadpool<T>::append(T* request){
     assert(m_queuelocker.lock());
     if(m_workqueue.size()>=m_max_requests){
         assert(m_queuelocker.unlock());
+        LOG_DEBUG("Too many requests");
         printf("Too many requests\n");
         return false;
     }
@@ -95,6 +98,7 @@ void threadpool<T>::run(){
         if(req==nullptr)
             continue;
         pthread_t tid=pthread_self();
+        LOG_INFO("Now thread %lu is serving",tid);
         printf("Now thread %lu is serving\n",tid);
         req->process();
     }
