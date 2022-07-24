@@ -21,6 +21,7 @@
 #include "mylocker.h"
 #include "timer_heap.h"
 #include "myepoll.h"
+#include "mylog.h"
 
 class http_conn{
 public:
