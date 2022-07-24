@@ -91,7 +91,9 @@ http_conn::LINE_STATUS http_conn::parse_line(){
 
 bool http_conn::read(){
     if(m_read_idx>=READ_BUFFER_SIZE){
+        LOG_DEBUG("RDbufer busy");
         printf("rdbuffer busy\n");
+        
         return false;
     }
     while(true){
@@ -180,6 +182,7 @@ http_conn::HTTP_CODE http_conn::parse_header(char* text){
             return BAD_REQUEST;
     }
     else{
+        LOG_DEBUG("Unknown header: %s",text);
         printf("Unknown header: %s\n",text);
         return BAD_REQUEST;
     }
@@ -203,6 +206,7 @@ http_conn::HTTP_CODE http_conn::process_read(){
     while(((m_check_state==CHECK_STATE_CONTENT)&&(cur_line_status==LINE_OK))||((cur_line_status=parse_line())==LINE_OK)){
         text=get_line();
         m_start_line=m_checked_idx;
+        LOG_INFO("Get one http line:%s",text)
         printf("Get one http line:%s\n",text);
 
         switch(m_check_state){
@@ -251,6 +255,7 @@ http_conn::HTTP_CODE http_conn::do_request(){
     int filefd=open(m_real_file,O_RDONLY);
     m_file_address=(char*)mmap(nullptr,m_file_stat.st_size,PROT_READ,MAP_PRIVATE,filefd,0);
     if(m_file_address==MAP_FAILED){
+        LOG_DEBUG("Map failed");
         printf("map failed\n");
         m_file_address=nullptr;
         close(filefd);
@@ -296,6 +301,7 @@ bool http_conn::write(){
         return false;
     }
     else{
+        LOG_DEBUG("TCP wbuffer busy");
         printf("TCP wbuffer busy\n");
         return false;
     }
@@ -303,6 +309,7 @@ bool http_conn::write(){
 
 bool http_conn::add_response(const char* format,...){
     if(m_write_idx>=WRITE_BUFFER_SIZE){
+        LOG_DEBUG("HTTP WBuf busy");
         printf("http wbuffer busy\n");
         return false;
     }
@@ -313,10 +320,12 @@ bool http_conn::add_response(const char* format,...){
     va_end(arg_list);
 
     if(writelen<0){
+        LOG_DEBUG("vsnprintf error");
         printf("vsnprintf error\n");
         return false;
     }
     else if(writelen+m_write_idx>WRITE_BUFFER_SIZE-1){
+        LOG_DEBUG("vsnprintf wbuffer busy");
         printf("vsnprintf wbuffer busy\n");
         return false;
     }
