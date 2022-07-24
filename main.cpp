@@ -17,6 +17,7 @@
 #include "http_conn.h"
 #include "timer_heap.h"
 #include "myepoll.h"
+#include "mylog.h"
 
 static const int TIMEOUT=20;
 static const int MAX_FD=65536;
@@ -47,6 +48,7 @@ void addsig(int sig,void(*handler)(int),bool restart=true){
 
 void show_error(int connfd,const char* info){
     printf("%s",info);
+    LOG_ERROR("%s",info);
     send(connfd,info,strlen(info),0);
     close(connfd);
 }
@@ -59,13 +61,16 @@ void time_handler(){
 
 void cb_func(http_conn* usr){
     int sockfd=usr->GetSocket();
+    LOG_INFO("Closing silent socket %d",sockfd);
     printf("closing silent socket %d\n",sockfd);
     send(sockfd,ShutSilent,strlen(ShutSilent),0);
     usr->close_conn();
 }
 
 int main(int argc,char* argv[]){
+    Log::GetInstance()->Init("./WebserverLog",0,8192,1000,100);
     if(argc<=2){
+        LOG_WARN("usage: %s ip_address port_number\n",basename(argv[0]));
         printf("usage: %s ip_address port_number\n",basename(argv[0]));
         return 1;
     }
@@ -79,11 +84,14 @@ int main(int argc,char* argv[]){
     //close(STDIN_FILENO);
     //close(STDOUT_FILENO);
     //close(STDERR_FILENO);
+
+
     threadpool<http_conn>* workpool=nullptr;
     try{
         workpool=new threadpool<http_conn>(16,10000);
     }
     catch(...){
+        LOG_DEBUG("Fail to new threadpool");
         printf("Fail to new threadpool\n");
         return 1;
     }
@@ -124,6 +132,7 @@ int main(int argc,char* argv[]){
         if(number<0){
             if(errno!=EAGAIN&&errno!=EINTR){
                 printf("epoll wait failure\n");
+                LOG_ERROR("Epoll failure");
                 break;
             }
         }
@@ -139,6 +148,7 @@ int main(int argc,char* argv[]){
                     if(connfd<0){
                         if(errno==EAGAIN)
                             break;
+                        LOG_DEBUG("Accept() errno:%d",errno);
                         printf("accept() errno is:%d\n",errno);
                         break;
                     }  
@@ -149,6 +159,7 @@ int main(int argc,char* argv[]){
                     }
                     send(connfd,Welcome,strlen(Welcome),0);
                     users[connfd].init(connfd,client_addr);
+                    LOG_INFO("We have a new user\nCurrent user number is %d",http_conn::m_user_count);
                     printf("We have a new user\nCurrent user number is %d\n",http_conn::m_user_count);
                     *(users[connfd].timer)=std::move(heap_timer<http_conn>(TIMEOUT,cb_func,users+connfd));//每个连接保活TIMEOUT秒
                     if(TH.empty())
@@ -161,6 +172,7 @@ int main(int argc,char* argv[]){
                 char signals[1024];
                 ret=recv(curfd,signals,sizeof(signals),0);
                 if(ret<=0){
+                    LOG_ERROR("read signals failure");
                     printf("read signals failure\n");
                     continue;
                 }
