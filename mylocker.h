@@ -70,11 +70,16 @@ public:
         pthread_cond_destroy(&m_cond);
     }
 
+    bool lock(){
+        return pthread_mutex_lock(&m_mutex)==0;
+    }
+
+    bool unlock(){
+        return pthread_mutex_unlock(&m_mutex)==0;
+    }
+
     bool wait(){
-        assert(pthread_mutex_lock(&m_mutex)==0);
-        int ret=pthread_cond_wait(&m_cond,&m_mutex);
-        assert(pthread_mutex_unlock(&m_mutex)==0);
-        return ret==0;
+        return pthread_cond_wait(&m_cond,&m_mutex)==0;
     }
 
     bool signal(){
